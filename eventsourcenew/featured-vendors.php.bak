@@ -1,0 +1,55 @@
+<div class="featured-vendors-carousel">
+    <?php
+    $featured_posts = get_posts(array(
+        'posts_per_page' => -1,
+        'post_type' => 'post',
+        'author' => get_the_author_meta('ID'),
+        'exclude' => get_the_ID()
+    ));
+    foreach ($featured_posts as $featured_post) {
+        ?>
+
+        <div class="featured-vendor col-md-4 col-sm-4">
+            <div class="header">VENUE</div>
+            <div class="thumb carousel slide" id="myCarousel<?php echo get_the_ID().'-'.$featured_post->ID;?>" data-ride="carousel" data-interval="false">
+                <div class="carousel-inner"  role="listbox">
+
+                    <div class="item active" style="background-image: url('http://www.summerhillstudios.ca/blog/wp-content/uploads/2014/12/britblonde00014.jpg')"></div>
+                    <div class="item" style="background-image: url('http://www.summerhillstudios.ca/blog/wp-content/uploads/2014/12/britblonde00013.jpg')"></div>
+                    <div class="item" style="background-image: url('http://www.summerhillstudios.ca/blog/wp-content/uploads/2014/12/britblonde00014.jpg')"></div>
+                    <div class="item" style="background-image: url('http://www.summerhillstudios.ca/blog/wp-content/uploads/2014/12/britblonde00013.jpg')"></div>
+                </div>
+                <a class="left carousel-control" href="#myCarousel<?php echo get_the_ID().'-'.$featured_post->ID;?>" role="button" data-slide="prev">
+                    <span class="glyphicon " aria-hidden="true"></span>
+                    <span class="sr-only">Previous</span>
+                </a>
+                <a class="right carousel-control" href="#myCarousel<?php echo get_the_ID().'-'.$featured_post->ID;?>" role="button" data-slide="next">
+                    <span class="glyphicon " aria-hidden="true"></span>
+                    <span class="sr-only">Next</span>
+                </a>
+            </div>
+            <div class="description">
+                <div
+                    class="featured-post-title"><?php echo $featured_post->post_title; ?></div>
+                <div class="featured-post-reviews clearfix">
+                    <div class="stars-block">
+                        <div class="stars" style="width: <?php echo rand(1, 4) * 25; ?>%;"></div>
+                    </div>
+                    <div class="reviews-count">(12)</div>
+                    <div class="text">5 Blog Mentions</div>
+                    <div class="clearfix"></div>
+                    <div class="btn-block">
+<!--                        --><?php //if($n++%2 == 0): ?>
+<!--                            <div class="reb-btn">VIEW PORTFOLIO</div>-->
+<!--                        --><?php //else: ?>
+                            <div class="reb-btn">PORTFOLIO</div>
+                            <div class="grey-btn">CONTACT</div>
+<!--                        --><?php //endif;?>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <?php
+    }
+    ?>
+</div>

@@ -1,0 +1,838 @@
+<?php
+
+if (!is_admin()) {
+    wp_register_script('bootstrap',get_template_directory_uri().'/js/bootstrap.min.js',array('jquery'));
+    wp_register_script('owl-carousel', get_template_directory_uri() . '/js/owl.carousel.min.js', array('jquery'));
+    wp_register_script('main', get_template_directory_uri() . '/js/main.js', array('jquery'));
+    wp_register_script('jquery-ui', get_template_directory_uri() . '/js/jquery.ui.js', array('jquery'));
+    wp_enqueue_script('bootstrap');
+    wp_enqueue_script('owl-carousel');
+    wp_enqueue_script('jquery-ui');
+    wp_enqueue_script('main');
+    wp_register_style('bootstrap', get_template_directory_uri() . '/css/bootstrap.min.css');
+    wp_register_style('owl-carousel', get_template_directory_uri() . '/css/owl.carousel.css');
+    wp_register_style('font-awesome', get_template_directory_uri() . '/css/font-awesome.min.css');
+    wp_register_style('yamm', get_template_directory_uri() . '/css/yamm.min.css');
+    wp_register_style('style', get_template_directory_uri() . '/style.css');
+    wp_enqueue_style('bootstrap');
+    wp_enqueue_style('owl-carousel');
+    wp_enqueue_style('font-awesome');
+    wp_enqueue_style('yamm');
+    wp_enqueue_style('style');
+}
+add_action('widgets_init', 'theme_slug_widgets_init');
+function theme_slug_widgets_init()
+{
+    register_sidebar(array(
+        'id' => 'right-block',
+        'before_title' => '<div class="left-red-block widget-title">',
+        'after_title' => '</div>',
+        'name' => __('Right block'),
+        'before_widget' => '<div id="%1$s" class="right-block-widget widget %2$s">',
+        'after_widget' => '</div>'
+    ));
+
+    register_sidebar(array(
+        'id' => 'top-block',
+        'before_title' => '<div class="top-widget-title">',
+        'after_title' => '</div>',
+        'name' => __('Top mobile/tablet block'),
+        'before_widget' => '<div id="%1$s" class="top-block-widget col-sm-4 hidden-md hidden-lg widget %2$s">',
+        'after_widget' => '</div>'
+    ));
+}
+
+if (function_exists('add_theme_support')) {
+    add_theme_support('post-thumbnails');
+}
+
+add_action('add_meta_boxes', 'featured_bg_position');
+add_action('save_post', 'featured_bg_position_save');
+
+function featured_bg_position()
+{
+    add_meta_box('featured_bg_position', __('Featured background top position'), 'featured_bg_position_block', null, 'side', 'low');
+}
+
+function featured_bg_position_block($post)
+{
+    $featured_bg_position = get_post_field('featured_bg_position', $post);
+    ?>
+    <input class="" type="number" name="featured_bg_position" style="width: 100%" min="0" max="100" value="<?php echo $featured_bg_position ? $featured_bg_position : 50; ?>"/>
+    <?php
+}
+
+function featured_bg_position_save($post_id)
+{
+    if (!isset($_POST['featured_bg_position'])) {
+        return $post_id;
+    } else {
+        $featured_bg_position_post_value = 50;
+        if (!empty($_POST['featured_bg_position'])) {
+            $featured_bg_position_post_value = $_POST['featured_bg_position'];
+        }
+        update_post_meta($post_id, 'featured_bg_position', $featured_bg_position_post_value);
+    }
+}
+
+function add_image_class_dimensions($html, $id, $alt, $title)
+{
+    if (preg_match('/width="(\d+)" height="(\d+)"/', $html, $dimensions)) {
+        list(, $width, $height) = $dimensions;
+        if ($width >= 451) {
+            $html = str_replace(
+                'class="',
+                'class="full-size-image ',
+                $html
+            );
+        } else if ($width >= 303 && $width <= 450) {
+            $html = str_replace(
+                'class="',
+                'class="short-size-image ',
+                $html
+            );
+        }
+    }
+    return $html;
+
+}
+
+add_filter('get_image_tag', 'add_image_class_dimensions', 10, 4);
+
+/*****vendors*****/
+function get_vendors($post_id)
+{
+    $meta_vendors = get_post_meta($post_id, 'vendors_meta', true);
+
+    if (!$meta_vendors) {
+        $meta_vendors = array();
+    }
+
+    $listingIds = array();
+
+    $meta_vendors_count = count($meta_vendors);
+    for ($i = 0; $i < $meta_vendors_count; $i++) {
+        if ($meta_vendors[$i]['vendor_es_id']) {
+            $listingIds[] = $meta_vendors[$i]['vendor_es_id'];
+        }
+    }
+
+    $postData = array(
+        'listingIds' => $listingIds
+    );
+
+    $ch = curl_init(ES_URL_BLOG_GET_LISTINGS);
+    curl_setopt_array($ch, array(
+        CURLOPT_POST => TRUE,
+        CURLOPT_RETURNTRANSFER => TRUE,
+        CURLOPT_HTTPHEADER => array(
+            'Content-Type: application/json'
+        ),
+        CURLOPT_POSTFIELDS => json_encode($postData)
+    ));
+
+    if (ES_CLIENT_SIDE_LOGIN) {
+        curl_setopt($ch, CURLOPT_USERPWD, ES_CLIENT_SIDE_LOGIN . ':' . ES_CLIENT_SIDE_PASS);
+    }
+
+    $response = curl_exec($ch);
+    $d = json_decode($response, true);
+    $es_vendors = json_decode($d['d'], true);
+
+    if (!$es_vendors) {
+        $es_vendors = array();
+    }
+
+    $vendors = array();
+
+    for ($i = 0; $i < $meta_vendors_count; $i++) {
+        $vendor = $meta_vendors[$i];
+        $es_vendor = NULL;
+
+        if ($vendor['vendor_es_id']) {
+            foreach ($es_vendors as $v) {
+                if ($v['id'] == $vendor['vendor_es_id']) {
+                    $es_vendor = $v;
+                    break;
+                }
+            }
+        }
+
+        $es_enabled = false;
+        $link = NULL;
+        $vendor_link = NULL;
+        $title = NULL;
+        $logo = NULL;
+        $image = NULL;
+        $email = NULL;
+
+        if ($es_vendor) {
+            $es_enabled = $es_vendor['enabled'];
+            $vendor_link = $es_enabled ? ('/website.aspx?id=' . $es_vendor['id']) : $es_vendor['homepage'];
+            $link = $es_vendor['link'];
+            $title = $es_vendor['label'];
+            $logo = $es_vendor['logo'];
+            $image = $es_vendor['image'];
+            $email = $es_vendor['email'];
+
+            if (!$image) {
+                $image = $logo;
+            }
+        } else {
+            $vendor_link = $vendor['vendor_link'];
+            $title = $vendor['vendor_name'];
+            $image = $vendor['vendor_es_logo'];
+            $email = $vendor['vendor_email'];
+        }
+
+        $vendors[] = array(
+            'id' => $vendor['vendor_es_id'],
+            'vendor_link' => $vendor_link,
+            'link' => $link,
+            'title' => $title,
+            'logo' => $logo,
+            'image' => $image,
+            'email' => $email,
+            'featured' => $es_enabled,
+            'category' => $vendor['vendor_category']
+        );
+    }
+
+    return $vendors;
+}
+
+
+$vendors_meta_name = 'vendors_meta';
+$vendors_message_meta_name = 'vendors_message';
+$vendor_fields = array('vendor_category', 'vendor_name', 'vendor_link', 'vendor_email', 'vendor_es_logo', 'vendor_es_id', 'vendor_operation');
+$metadata_fields = array('vendor_category', 'vendor_name', 'vendor_link', 'vendor_email', 'vendor_es_logo', 'vendor_es_id');
+
+$post_old_status = NULL;
+$post_new_status = NULL;
+
+function vendors_template()
+{
+    global $post;
+    global $vendors_meta_name;
+
+    $post_id = $post->ID;
+
+    //$vendors = get_post_meta($post->ID, $vendors_meta_name, true);
+    $vendors = get_vendors($post->ID);
+
+    if (!$vendors) {
+        $vendors = array();
+    }
+
+    $vendors_json = json_encode($vendors);
+    ?>
+
+    <style>
+        .vendors-meta-block {
+            margin-bottom: 20px;
+        }
+
+        .vendors-meta-block .vendors-meta-group:first-child {
+            margin-left: 0;
+        }
+
+        .vendors-meta-group {
+            float: left;
+            margin-left: 14px;
+        }
+
+        .vendors-meta-category {
+            width: 180px;
+        }
+
+        .vendors-meta-name {
+            width: 260px;
+        }
+
+        .vendors-meta-link {
+            width: 300px;
+        }
+
+        .vendors-meta-logo {
+            width: 92px;
+        }
+
+        .vendors-meata-add-row {
+            text-align: right;
+            margin: 20px 20px 0 0;
+        }
+
+        .vendors-meta-tool-row {
+            width: 90px;
+            padding-top: 24px;
+        }
+
+        .ui-autocomplete-term {
+            font-weight: bold;
+        }
+    </style>
+
+    <script type="text/javascript">
+        var vendors = <?php echo $vendors_json; ?>
+
+            jQuery(function () {
+                jQuery('#post').attr('enctype', 'multipart/form-data');
+
+                jQuery("#btnAddVendorRow").click(function () {
+                    var row = jQuery(jQuery("#tmplVendorsMetaBlock").html());
+                    jQuery("#vendors-meta-rows").append(row);
+                    row.find("[name='vendor_operation[]']").val('add');
+                    row.find('.btn-vendors-meta-clear-row:last').removeClass('hidden');
+                    setAutocomplete(row);
+                });
+
+                jQuery("#vendors_meta").on("click", ".btn-vendors-meta-remove-row", function () {
+                    var $block = jQuery(this).closest(".vendors-meta-block");
+                    $block.find("[name='vendor_operation[]']").val('del');
+                    $block.hide();
+                });
+
+                jQuery("#vendors_meta").on("click", ".btn-vendors-meta-clear-row", function () {
+                    jQuery(this).closest(".vendors-meta-block").find("input").val('');
+                });
+
+                var valueFieldMap = {id: 'vendor_es_id', category: 'vendor_category', title: 'vendor_name', link: 'vendor_link', email: 'vendor_email', logo: 'vendor_es_logo'};
+
+                for (k in vendors) {
+                    var vendor = vendors[k];
+                    var block = jQuery(jQuery("#tmplVendorsMetaBlock").html());
+
+                    for (valueField in valueFieldMap) {
+                        var controlField = valueFieldMap[valueField];
+                        if (valueField == 'logo') {
+                            var link = vendor.logo;
+                            if (link) {
+                                block.find('.image').attr('src', window.location.protocol + '//' + window.location.host + link + '?d=' + new Date().getTime());
+                            }
+                        }
+
+                        var $field = block.find("[name='" + controlField + "[]']").val(vendor[valueField]);
+                        if (controlField != 'vendor_category') {
+                            $field.attr('readonly', 'readonly');
+                        }
+                    }
+
+                    jQuery("#vendors-meta-rows").append(block);
+                }
+
+                function htmlEncode(value) {
+                    return jQuery('<div/>').text(value).html();
+                }
+
+                function htmlDecode(value) {
+                    return jQuery('<div/>').html(value).text();
+                }
+
+                // wrap term in ui-autocomplete-term class.
+                jQuery.ui.autocomplete.prototype._renderItem = function (ul, item) {
+                    var r = new RegExp(this.term, "i");
+
+                    var m = item.label.match(r);
+
+                    var t = null;
+
+                    if (m != null && m.length > 0) {
+                        t = item.label.replace(m, "<span class='ui-autocomplete-term'>" + m + "</span>");
+                    } else {
+                        t = item.label;
+                    }
+
+                    return jQuery("<li>")
+                        .append(jQuery("<a>").html(t))
+                        .appendTo(ul);
+                };
+
+                var setAutocomplete = function (parent) {
+                    var elems = parent.find("[name='vendor_name[]']");
+
+                    if (elems.length > 0) {
+                        var setFieldValues = function (elem, item) {
+                            if (typeof(elem) == "undefined" || elem.length == 0) {
+                                return;
+                            }
+
+                            var block = elem.closest(".vendors-meta-block");
+                            block.find("[name='vendor_es_id[]']").val(item ? item.id : '');
+
+                            if (item) {
+                                block.find("[name='vendor_es_logo[]']").val(item.logo);
+                                block.find('.image').attr('src', window.location.protocol + '//' + window.location.host + item.logo + '?d=' + new Date().getTime());
+
+                                if (block.find("[name='vendor_category[]']").val() == '') {
+                                    block.find("[name='vendor_category[]']").val(item.category);
+                                }
+
+                                if (block.find("[name='vendor_link[]']").val() == '') {
+                                    block.find("[name='vendor_link[]']").val(item.link);
+                                }
+
+                                if (block.find("[name='vendor_email[]']").val() == '') {
+                                    block.find("[name='vendor_email[]']").val(item.email);
+                                }
+
+                                // if (block.find("[name='vendor_logo[]']").val() == '') {
+                                // block.find("[name='vendor_logo[]']").val(item.logo);
+                                // }
+
+                                elem.val(item.label);
+                            }
+                        };
+
+                        elems.autocomplete({
+                            autoFocus: true,
+                            source: function (request, response) {
+
+                                var param = {'keyword': request.term};
+
+                                jQuery.ajax({
+                                    type: "POST",
+                                    url: "/SearchWebService.asmx/BlogListingSearch",
+                                    data: JSON.stringify(param),
+                                    contentType: "application/json; charset=utf-8",
+                                    dataType: "json",
+                                    success: function (data) {
+                                        response(jQuery.parseJSON(data.d));
+                                    }
+                                });
+                            },
+                            minLength: 2,
+                            select: function (event, ui) {
+                                var $this = jQuery(this);
+                                var item = ui.item;
+
+                                setFieldValues($this, item);
+
+                                return false;
+                            },
+                            change: function (event, ui) {
+                                if (!ui.item) {
+                                    var $this = jQuery(this);
+                                    setFieldValues($this, null);
+                                }
+                            }
+                        });
+                    }
+                };
+
+                function readURL(input) {
+                    if (input.files && input.files[0]) {
+                        var reader = new FileReader();
+
+                        reader.onload = function (e) {
+                            jQuery(input).closest('.vendors-meta-block').find('.image').attr('src', e.target.result);
+                        }
+
+                        reader.readAsDataURL(input.files[0]);
+                    }
+                }
+
+                jQuery('#vendors-meta-rows').on('change', '.vendors-meta-logo', function () {
+                    readURL(this);
+                });
+
+                setAutocomplete(jQuery("#vendors-meta-rows"));
+            });
+    </script>
+
+    <div id="vendors-meta-rows">
+    </div>
+
+    <script type="html/x-template" id="tmplVendorsMetaBlock">
+        <div class="vendors-meta-block">
+            <div class="vendors-meta-group">
+                <label for="vendor_name">Vendor Category</label><br/>
+                <input type="text" name="vendor_category[]" class="text_input vendors-meta-category" value=""/>
+            </div>
+            <div class="vendors-meta-group">
+                <label for="vendor_name">Vendor Name</label><br/>
+                <input type="text" name="vendor_name[]" class="text_input vendors-meta-name" value=""/>
+            </div>
+            <div class="vendors-meta-group">
+                <label for="vendor_name">Vendor Link</label><br/>
+                <input type="text" name="vendor_link[]" class="text_input vendors-meta-link" value=""/>
+            </div>
+            <div class="vendors-meta-group">
+                <label for="vendor_email">Vendor Email</label><br/>
+                <input type="text" name="vendor_email[]" class="text_input vendors-meta-email" value=""/>
+            </div>
+            <div class="vendors-meta-group">
+                <label for="vendor_logo">Vendor Logo</label><br/>
+                <input type="file" name="vendor_logo[]" class="text_input vendors-meta-logo" value=""/>
+            </div>
+            <div class="vendors-meta-group" class="image-block">
+                <img height="40" class="image"/>
+            </div>
+            <div class="vendors-meta-group vendors-meta-tool-row">
+                <a href="javascript:;" class="switch btn-vendors-meta-clear-row hidden">Clear</a>
+                <a href="javascript:;" class="switch btn-vendors-meta-remove-row">Remove</a>
+            </div>
+
+            <input type="hidden" name="vendor_es_id[]" value=""/>
+            <input type="hidden" name="vendor_es_logo[]" value=""/>
+            <input type="hidden" name="vendor_operation[]" value="none"/>
+
+            <div class="clear"></div>
+        </div>
+    </script>
+
+    <div class="vendors-meata-add-row">
+        <a href="javascript:;" class="switch" id="btnAddVendorRow">[+] Add Row</a>
+    </div>
+
+    <?php
+}
+
+function vendors_save_meta($post_id)
+{
+    global $vendor_fields;
+    global $metadata_fields;
+    global $vendors_meta_name;
+
+    $vendors = array();
+
+    if (!$_POST) {
+        return;
+    }
+
+    foreach ($vendor_fields as $field) {
+        $data_array = $_POST[$field];
+
+        if (!$data_array || count($data_array) == 0) {
+            continue;
+        }
+
+        $i = 0;
+        foreach ($data_array as $data) {
+            if (!is_array($vendors[$i])) {
+                $vendors[$i] = array();
+            }
+
+            if ($field == 'vendor_link') {
+                if ($data && strpos($data, 'http') !== 0) {
+                    $data = 'http://' . $data;
+                }
+            }
+
+            $vendors[$i][$field] = $data;
+
+            $i++;
+        }
+    }
+
+    $metadata = array();
+
+    $i = 0;
+    foreach ($vendors as $vendor) {
+        if ($vendor['vendor_operation'] == 'del') {
+            continue;
+        }
+
+        $metadata[$i] = array();
+
+        foreach ($vendor as $field => $val) {
+            if (in_array($field, $metadata_fields)) {
+                $metadata[$i][$field] = $val;
+            }
+        }
+
+        $i++;
+    }
+
+    sendNewVendorsToEs($post_id, $vendors);
+
+    $current_data = get_post_meta($post_id, $vendors_meta_name, true);
+
+    if ($metadata) {
+        foreach ($metadata as &$meta) {
+            if (!$meta['vendor_es_id']) {
+                $es_vendor = NULL;
+
+                foreach ($vendors as $vendor) {
+                    if ($meta['vendor_name'] == $vendor['vendor_name']) {
+                        $es_vendor = $vendor;
+                        break;
+                    }
+                }
+
+                if ($es_vendor) {
+                    $meta['vendor_es_id'] = $es_vendor['vendor_es_id'];
+                    $meta['vendor_es_logo'] = $es_vendor['vendor_es_logo'];
+                }
+            }
+        }
+
+        if ($current_data) {
+            update_post_meta($post_id, $vendors_meta_name, $metadata);
+        } else if ($metadata) {
+            add_post_meta($post_id, $vendors_meta_name, $metadata, true);
+        }
+    } else {
+        delete_post_meta($post_id, $vendors_meta_name);
+    }
+}
+
+function removeUnicodeSequences($struct)
+{
+    return preg_replace("/\\\\u([a-f0-9]{4})/e", "iconv('UCS-4LE','UTF-8',pack('V', hexdec('U$1')))", $struct);
+}
+
+function sendNewVendorsToEs($post_id, &$vendors)
+{
+    global $vendors_message_meta_name;
+    global $post_old_status;
+    global $post_new_status;
+
+    $v_data = array();
+
+    if ($vendors) {
+        $i = 0;
+        foreach ($vendors as $vendor) {
+            $v_data[] = array(
+                'id' => $vendor['vendor_es_id'] ? $vendor['vendor_es_id'] : 0,
+                'name' => $vendor['vendor_name'],
+                'link' => $vendor['vendor_link'],
+                'email' => $vendor['vendor_email'],
+                'operation' => $vendor['vendor_operation'],
+                'logoBase64' => $_FILES['vendor_logo']['tmp_name'][$i]
+                    ? base64_encode(file_get_contents($_FILES['vendor_logo']['tmp_name'][$i]))
+                    : null
+            );
+
+            $i++;
+        }
+    }
+
+    /*
+    We need to send request even we not have items for remove links.
+    if (count($v_data) == 0) {
+        return TRUE;
+    }
+    */
+
+    $postData = array(
+        'articleId' => $post_id,
+        'oldStatus' => $post_old_status,
+        'newStatus' => $post_new_status,
+        'vendors' => $v_data
+    );
+
+    $ch = curl_init(ES_URL_ADD_LISTING_FROM_BLOG);
+    curl_setopt_array($ch, array(
+        CURLOPT_POST => TRUE,
+        CURLOPT_RETURNTRANSFER => TRUE,
+		CURLOPT_SSL_VERIFYPEER => FALSE,
+        CURLOPT_HTTPHEADER => array(
+            'Content-Type: application/json'
+        ),
+        CURLOPT_POSTFIELDS => str_replace('\\', '', removeUnicodeSequences(json_encode($postData)))
+    ));
+
+    if (ES_ADMIN_SIDE_LOGIN) {
+        curl_setopt($ch, CURLOPT_USERPWD, ES_ADMIN_SIDE_LOGIN . ':' . ES_ADMIN_SIDE_PASS);
+    }
+
+    $response = curl_exec($ch);
+
+    $d = json_decode($response, true);
+    $result = json_decode($d['d'], true);
+
+    if ((!$result || $result['message']) && $vendors) {
+        $err_message = NULL;
+
+        if ($result['message']) {
+            $err_message = $result['message'];
+        } else {
+            $err_message = 'Error saving new listing on ES.';
+        }
+
+        $current_message = get_post_meta($post_ID, $vendors_message_meta_name, true);
+
+        if ($current_message) {
+            update_post_meta($post_ID, $vendors_message_meta_name, $err_message);
+        } else {
+            add_post_meta($post_ID, $vendors_message_meta_name, $err_message, true);
+        }
+    }
+
+    if ($result && $result['success'] === TRUE) {
+        $new_vendors = $result['vendors'];
+        if(!empty($new_vendors)){
+            foreach ($vendors as $k => &$vendor) {
+                $es_vendor = NULL;
+
+                foreach ($new_vendors as $new_vendor) {
+                    if ($vendor['vendor_name'] == $new_vendor['name']) {
+                        $es_vendor = $new_vendor;
+                        break;
+                    }
+                }
+
+                if ($es_vendor && $es_vendor['saved'] === TRUE) {
+                    $vendor['vendor_es_id'] = $new_vendor['id'];
+                    $vendor['vendor_es_logo'] = $new_vendor['logoLink'];
+                }
+            }
+        }
+    }
+
+    return $result && $result['success'] === TRUE;
+}
+
+function vendors_meta_boxes()
+{
+    $meta_box = array(
+        'id' => 'vendors_meta',
+        'title' => 'Vendors',
+        'function' => 'vendors_template'
+    );
+
+    add_meta_box($meta_box['id'], $meta_box['title'], $meta_box['function'], 'post', 'normal', 'high');
+
+    add_action('save_post', 'vendors_save_meta');
+}
+
+add_action('admin_menu', 'vendors_meta_boxes');
+
+function post_change_status($new_status, $old_status, $post)
+{
+    global $post_old_status;
+    global $post_new_status;
+
+    $post_old_status = $old_status;
+    $post_new_status = $new_status;
+}
+
+;
+
+add_action('transition_post_status', 'post_change_status', 10, 3);
+
+function post_trash($post_id)
+{
+    global $post_old_status;
+    global $post_new_status;
+
+    $post_old_status = get_post_status($post_id);
+    $post_new_status = 'trash';
+
+    $meta_vendors = get_post_meta($post_id, 'vendors_meta', true);
+
+    sendNewVendorsToEs($post_id, $meta_vendors);
+}
+
+function post_untrash($post_id)
+{
+    global $post_old_status;
+    global $post_new_status;
+
+    $post_old_status = 'trash';
+    $post_new_status = get_post_status($post_id);
+
+    $meta_vendors = get_post_meta($post_id, 'vendors_meta', true);
+
+    sendNewVendorsToEs($post_id, $meta_vendors);
+}
+
+add_action('wp_trash_post', 'post_trash');
+add_action('untrash_post', 'post_untrash');
+
+function vendors_admin_notice()
+{
+    global $post_ID;
+    global $vendors_message_meta_name;
+
+    $current_message = get_post_meta($post_ID, $vendors_message_meta_name, true);
+
+    if ($current_message) {
+        ?>
+        <div class="error">
+            <p><?php _e($current_message, 'vendors'); ?></p>
+        </div>
+        <?php
+        delete_post_meta($post_ID, $vendors_message_meta_name);
+    } else if ($_GET['message']) {
+        ?>
+        <div class="updated">
+            <p><?php _e('New ES listings saved.', 'vendors'); ?></p>
+        </div>
+        <?php
+    }
+}
+
+add_action('admin_notices', 'vendors_admin_notice');
+
+
+function mce_mod($init)
+{
+
+
+    $style_formats = array(
+        array('title' => 'Image Caption', 'inline' => 'span', 'classes' => 'caption')
+    );
+
+    $init['style_formats'] = json_encode($style_formats);
+
+    $init['style_formats_merge'] = true;
+    return $init;
+}
+
+add_filter('tiny_mce_before_init', 'mce_mod');
+
+
+//Funcition create shortcode for block Pricing
+function create_blockpricing($args, $content)
+{
+    $displaynone = $args['title_url'] == "" ? 'display: none' : 'display: block';
+    $content = '<div class="pricing-adam">';
+    //$content = '<div class="pricing-adam"><span class="title">'.$args['title_blockpricing'].'</span><a href="'.$args['url'].'" target="'.$args['target_url'].'" alt="" title=""><img src="'.get_bloginfo('template_url').'/images/dload.png" alt=""/><span class="title-img">'.$args['title_url'].'</span></a></div>';
+    if (!empty($args['title_blockpricing'])) {
+        $content .= '<span class="title">' . $args['title_blockpricing'] . '</span><br>';
+    }
+    if (!empty($args['title_url'])) {
+        $content .= '<a href="' . $args['url'] . '" target="' . $args['target_url'] . '" alt="" title="">
+        <span style="' . $displaynone . '" class="title-img glyphicon glyphicon-download-alt">
+        ' . $args['title_url'] . '
+        </span>
+        </a>';
+    }
+    $content .= "</div>";
+    return $content;
+}
+
+add_shortcode('blockpricing', 'create_blockpricing');
+
+//Hook shortcode into TinyMCE - WordPress
+add_action('init', 'add_button');
+function add_button()
+{
+    if (current_user_can('edit_posts') && current_user_can('edit_pages')) {
+        add_filter('mce_external_plugins', 'add_plugin');
+        add_filter('mce_buttons', 'register_button');
+    }
+}
+
+function register_button($buttons)
+{
+    array_push($buttons, "create_pricing_button");
+    return $buttons;
+}
+
+function add_plugin($plugin_array)
+{
+    $path = get_bloginfo('template_url') . '/js/js-adam.js';
+    $plugin_array['create_pricing_button'] = $path;
+    return $plugin_array;
+}
+
+function wpseo_canonical_exclude($canonical)
+{
+    return false;
+}
+
+add_filter('wpseo_canonical', 'wpseo_canonical_exclude');
+add_filter('wpseo_next_rel_link', 'wpseo_canonical_exclude');
+add_filter('wpseo_prev_rel_link', 'wpseo_canonical_exclude');

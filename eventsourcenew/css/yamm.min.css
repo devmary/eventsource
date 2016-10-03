@@ -1,0 +1,6 @@
+/*!
+ * Yamm!3 - Yet another megamenu for Bootstrap 3
+ * http://geedmo.github.com/yamm3
+ *
+ * @geedmo - Licensed under the MIT license
+ */.yamm .collapse,.yamm .dropdown,.yamm .dropup,.yamm .nav{position:static}.yamm .container,.yamm .profile-nav li.user-profile{position:relative}.yamm .dropdown-menu{left:auto}.yamm .yamm-content{padding:0}.yamm .yamm-content .media-heading{text-transform:uppercase}.yamm .dropdown.yamm-fw .dropdown-menu{left:0;right:0}.list-unstyled,.list-unstyled ul{min-width:200px;padding:0;margin:0;max-width:100%} .primary-nav .dropdown-menu .list-unstyled li a{display:block;text-decoration:none;padding:7px 23px;font-size:14px;color:#666} .yamm-content .row{margin:0}.yamm-content div[class*=' col-xs'],.yamm-content div[class^=col-xs]{padding:0} .yamm-content h4{padding:15px 0 15px 23px;margin:0;font-size:14px;color:#ccc}.yamm-footer{margin:0}.yamm-footer a{display:block;vertical-align:top;text-align:center;color:#666;text-decoration:none;line-height:38px;font-weight:600}.yamm-footer a:hover{color:#666}{overflow:hidden}.yamm-carousel{margin:50px 0}.yamm-carousel .owl-carousel .owl-stage-outer{overflow:initial}.cc-item .dropdown,.cc-item .navbar-nav>li>a{padding:0}
